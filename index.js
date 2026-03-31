@@ -17,9 +17,19 @@ app.post("/concat", async (req, res) => {
       return new Promise((resolve) => writer.on("finish", resolve));
     };
 
-    await download(intro_url, "intro.mp4");
-    await download(main_url, "main.mp4");
-    await download(outro_url, "outro.mp4");
+console.log("Downloading intro...");
+await download(intro_url, "intro.mp4");
+
+console.log("Downloading main...");
+await download(main_url, "main.mp4");
+
+console.log("Downloading outro...");
+await download(outro_url, "outro.mp4");
+
+console.log("Files downloaded:");
+console.log("intro:", fs.existsSync("intro.mp4"));
+console.log("main:", fs.existsSync("main.mp4"));
+console.log("outro:", fs.existsSync("outro.mp4"));
 
     fs.writeFileSync("files.txt", "file 'intro.mp4'\nfile 'main.mp4'\nfile 'outro.mp4'");
 
