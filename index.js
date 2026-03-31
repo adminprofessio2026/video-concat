@@ -23,7 +23,7 @@ app.post("/concat", async (req, res) => {
 
     fs.writeFileSync("files.txt", "file 'intro.mp4'\nfile 'main.mp4'\nfile 'outro.mp4'");
 
-    exec("ffmpeg -f concat -safe 0 -i files.txt -c copy output.mp4", (err) => {
+    exec("/usr/bin/ffmpeg -f concat -safe 0 -i files.txt -c copy output.mp4", (err) => {
       if (err) return res.status(500).send("Error processing video");
 
       res.sendFile(__dirname + "/output.mp4");
