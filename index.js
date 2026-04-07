@@ -22,20 +22,24 @@ app.post("/concat", async (req, res) => {
 async function processVideos(intro_url, main_url, outro_url, jobId) {
   try {
     const download = async (url, path) => {
-      const response = await axios({
-        url,
-        method: "GET",
-        responseType: "stream",
-      });
+    const response = await axios({
+    url,
+    method: "GET",
+    responseType: "stream",
+    maxRedirects: 5,
+    headers: {
+      "User-Agent": "Mozilla/5.0"
+    }
+  });
 
-      const writer = fs.createWriteStream(path);
-      response.data.pipe(writer);
+  const writer = fs.createWriteStream(path);
+  response.data.pipe(writer);
 
-      return new Promise((resolve, reject) => {
-        writer.on("finish", resolve);
-        writer.on("error", reject);
-      });
-    };
+  return new Promise((resolve, reject) => {
+    writer.on("finish", resolve);
+    writer.on("error", reject);
+  });
+};
 
     const introPath = `intro_${jobId}.mp4`;
     const mainPath = `main_${jobId}.mp4`;
