@@ -31,7 +31,10 @@ async function processVideos(intro_url, main_url, outro_url, jobId) {
       "User-Agent": "Mozilla/5.0"
     }
   });
-
+ // ✅ ADD LOGS HERE
+  console.log("Downloading from:", url);
+  console.log("Content-Type:", response.headers["content-type"]);
+  
   const writer = fs.createWriteStream(path);
   response.data.pipe(writer);
 
