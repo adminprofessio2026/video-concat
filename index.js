@@ -37,45 +37,56 @@ async function processVideos(intro_url, main_url, outro_url, jobId) {
       });
     };
 
+    const introPath = `intro_${jobId}.mp4`;
+    const mainPath = `main_${jobId}.mp4`;
+    const outroPath = `outro_${jobId}.mp4`;
+    const outputPath = `output_${jobId}.mp4`;
+
     console.log("Downloading intro...");
-    await download(intro_url, `intro_${jobId}.mp4`);
+    await download(intro_url, introPath);
 
     console.log("Downloading main...");
-    await download(main_url, `main_${jobId}.mp4`);
+    await download(main_url, mainPath);
 
     console.log("Downloading outro...");
-    await download(outro_url, `outro_${jobId}.mp4`);
+    await download(outro_url, outroPath);
 
     console.log("Files downloaded:");
-    console.log("intro:", fs.existsSync(`intro_${jobId}.mp4`));
-    console.log("main:", fs.existsSync(`main_${jobId}.mp4`));
-    console.log("outro:", fs.existsSync(`outro_${jobId}.mp4`));
+    console.log("intro:", fs.existsSync(introPath));
+    console.log("main:", fs.existsSync(mainPath));
+    console.log("outro:", fs.existsSync(outroPath));
 
-    fs.writeFileSync(
-      `files_${jobId}.txt`,
-      `file 'intro_${jobId}.mp4'\nfile 'main_${jobId}.mp4'\nfile 'outro_${jobId}.mp4'`
-    );
+    const ffmpegCmd = [
+      "/usr/bin/ffmpeg",
+      "-y",
+      `-i "${introPath}"`,
+      `-i "${mainPath}"`,
+      `-i "${outroPath}"`,
+      '-filter_complex "[0:v:0][0:a:0][1:v:0][1:a:0][2:v:0][2:a:0]concat=n=3:v=1:a=1[outv][outa]"',
+      '-map "[outv]"',
+      '-map "[outa]"',
+      "-c:v libx264",
+      "-c:a aac",
+      `"${outputPath}"`
+    ].join(" ");
 
-    exec(
-      `/usr/bin/ffmpeg -f concat -safe 0 -i files_${jobId}.txt -c:v libx264 -c:a aac output_${jobId}.mp4`,
-      (err, stdout, stderr) => {
-        console.log("FFmpeg stdout:", stdout);
-        console.log("FFmpeg stderr:", stderr);
+    exec(ffmpegCmd, (err, stdout, stderr) => {
+      console.log("FFmpeg stdout:", stdout);
+      console.log("FFmpeg stderr:", stderr);
 
-        if (err) {
-          jobs[jobId] = { status: "error" };
-          console.error("FFmpeg error:", err);
-          return;
-        }
-
-        jobs[jobId] = {
-          status: "done",
-          file: `output_${jobId}.mp4`,
-        };
-
-        console.log("Job completed:", jobId);
+      if (err) {
+        jobs[jobId] = { status: "error" };
+        console.error("FFmpeg error:", err);
+        return;
       }
-    );
+
+      jobs[jobId] = {
+        status: "done",
+        file: outputPath,
+      };
+
+      console.log("Job completed:", jobId);
+    });
   } catch (e) {
     jobs[jobId] = { status: "error" };
     console.error("Processing error:", e);
@@ -84,7 +95,6 @@ async function processVideos(intro_url, main_url, outro_url, jobId) {
 
 app.get("/download", (req, res) => {
   const { job_id } = req.query;
-
   const job = jobs[job_id];
 
   if (!job) {
