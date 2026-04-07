@@ -6,32 +6,35 @@ const axios = require("axios");
 const app = express();
 app.use(express.json());
 
-// 🟢 store jobs in memory
 const jobs = {};
 
 app.post("/concat", async (req, res) => {
   const { intro_url, main_url, outro_url } = req.body;
 
   const jobId = Date.now().toString();
-
-  // mark job as processing
   jobs[jobId] = { status: "processing", file: null };
 
-  // run in background (IMPORTANT: no await)
   processVideos(intro_url, main_url, outro_url, jobId);
 
-  // return immediately
   res.json({ job_id: jobId });
 });
 
-// 🟢 background processing function
 async function processVideos(intro_url, main_url, outro_url, jobId) {
   try {
     const download = async (url, path) => {
-      const response = await axios({ url, method: "GET", responseType: "stream" });
+      const response = await axios({
+        url,
+        method: "GET",
+        responseType: "stream",
+      });
+
       const writer = fs.createWriteStream(path);
       response.data.pipe(writer);
-      return new Promise((resolve) => writer.on("finish", resolve));
+
+      return new Promise((resolve, reject) => {
+        writer.on("finish", resolve);
+        writer.on("error", reject);
+      });
     };
 
     console.log("Downloading intro...");
@@ -54,11 +57,14 @@ async function processVideos(intro_url, main_url, outro_url, jobId) {
     );
 
     exec(
-      exec(`/usr/bin/ffmpeg -f concat -safe 0 -i files_${jobId}.txt -c:v libx264 -c:a aac output_${jobId}.mp4`,
-      (err) => {
+      `/usr/bin/ffmpeg -f concat -safe 0 -i files_${jobId}.txt -c:v libx264 -c:a aac output_${jobId}.mp4`,
+      (err, stdout, stderr) => {
+        console.log("FFmpeg stdout:", stdout);
+        console.log("FFmpeg stderr:", stderr);
+
         if (err) {
           jobs[jobId] = { status: "error" };
-          console.error(err);
+          console.error("FFmpeg error:", err);
           return;
         }
 
@@ -72,11 +78,10 @@ async function processVideos(intro_url, main_url, outro_url, jobId) {
     );
   } catch (e) {
     jobs[jobId] = { status: "error" };
-    console.error(e);
+    console.error("Processing error:", e);
   }
 }
 
-// 🟢 NEW endpoint to download video
 app.get("/download", (req, res) => {
   const { job_id } = req.query;
 
