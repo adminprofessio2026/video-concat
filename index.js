@@ -54,7 +54,7 @@ async function processVideos(intro_url, main_url, outro_url, jobId) {
     );
 
     exec(
-      `/usr/bin/ffmpeg -f concat -safe 0 -i files_${jobId}.txt -c copy output_${jobId}.mp4`,
+      exec(`/usr/bin/ffmpeg -f concat -safe 0 -i files_${jobId}.txt -c:v libx264 -c:a aac output_${jobId}.mp4`,
       (err) => {
         if (err) {
           jobs[jobId] = { status: "error" };
