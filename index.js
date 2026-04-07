@@ -56,13 +56,21 @@ async function processVideos(intro_url, main_url, outro_url, jobId) {
     console.log("main:", fs.existsSync(mainPath));
     console.log("outro:", fs.existsSync(outroPath));
 
+    // 🔥 FINAL FIXED FFMPEG COMMAND
     const cmd = `/usr/bin/ffmpeg -y \
 -i "${introPath}" \
 -i "${mainPath}" \
 -i "${outroPath}" \
--filter_complex "[0:v:0][0:a:0][1:v:0][1:a:0][2:v:0][2:a:0]concat=n=3:v=1:a=1[outv][outa]" \
+-filter_complex "\
+[0:v]scale=1280:720,fps=30,format=yuv420p[v0]; \
+[1:v]scale=1280:720,fps=30,format=yuv420p[v1]; \
+[2:v]scale=1280:720,fps=30,format=yuv420p[v2]; \
+[0:a]aresample=async=1[a0]; \
+[1:a]aresample=async=1[a1]; \
+[2:a]aresample=async=1[a2]; \
+[v0][a0][v1][a1][v2][a2]concat=n=3:v=1:a=1[outv][outa]" \
 -map "[outv]" -map "[outa]" \
--c:v libx264 -c:a aac "${outputPath}"`;
+-c:v libx264 -preset veryfast -c:a aac "${outputPath}"`;
 
     exec(cmd, (err, stdout, stderr) => {
       console.log("FFmpeg stdout:", stdout);
@@ -89,6 +97,7 @@ async function processVideos(intro_url, main_url, outro_url, jobId) {
 
 app.get("/download", (req, res) => {
   const { job_id } = req.query;
+
   const job = jobs[job_id];
 
   if (!job) {
