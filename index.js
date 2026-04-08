@@ -1,121 +1,55 @@
-const express = require("express");
-const { exec } = require("child_process");
-const fs = require("fs");
-const axios = require("axios");
+// 🔥 STEP 1: Normalize each video
+const normIntro = `norm_intro_${jobId}.mp4`;
+const normMain = `norm_main_${jobId}.mp4`;
+const normOutro = `norm_outro_${jobId}.mp4`;
 
-const app = express();
-app.use(express.json());
+const normalize = (input, output) =>
+  `/usr/bin/ffmpeg -y -i "${input}" \
+  -vf "scale=1280:720,fps=30,format=yuv420p" \
+  -c:v libx264 -preset veryfast \
+  -c:a aac -ar 44100 -ac 2 \
+  -movflags +faststart \
+  "${output}"`;
 
-const jobs = {};
+// Run normalization sequentially
+exec(normalize(introPath, normIntro), (err) => {
+  if (err) return console.error("Intro normalize error:", err);
 
-app.post("/concat", async (req, res) => {
-  const { intro_url, main_url, outro_url } = req.body;
+  exec(normalize(mainPath, normMain), (err) => {
+    if (err) return console.error("Main normalize error:", err);
 
-  const jobId = Date.now().toString();
-  jobs[jobId] = { status: "processing", file: null };
+    exec(normalize(outroPath, normOutro), (err) => {
+      if (err) return console.error("Outro normalize error:", err);
 
-  processVideos(intro_url, main_url, outro_url, jobId);
+      // 🔥 STEP 2: CONCAT (safe now)
+      fs.writeFileSync(
+        `files_${jobId}.txt`,
+        `file '${normIntro}'\nfile '${normMain}'\nfile '${normOutro}'`
+      );
 
-  res.json({ job_id: jobId });
-});
+      const concatCmd = `/usr/bin/ffmpeg -y \
+      -f concat -safe 0 \
+      -i files_${jobId}.txt \
+      -c copy \
+      "${outputPath}"`;
 
-async function processVideos(intro_url, main_url, outro_url, jobId) {
-  try {
-    const download = async (url, path) => {
-    const response = await axios({
-    url,
-    method: "GET",
-    responseType: "stream",
-    maxRedirects: 5,
-    headers: {
-      "User-Agent": "Mozilla/5.0"
-    }
-  });
- // ✅ ADD LOGS HERE
-  console.log("Downloading from:", url);
-  console.log("Content-Type:", response.headers["content-type"]);
-  
-  const writer = fs.createWriteStream(path);
-  response.data.pipe(writer);
+      exec(concatCmd, (err, stdout, stderr) => {
+        console.log("Concat stdout:", stdout);
+        console.log("Concat stderr:", stderr);
 
-  return new Promise((resolve, reject) => {
-    writer.on("finish", resolve);
-    writer.on("error", reject);
-  });
-};
+        if (err) {
+          jobs[jobId] = { status: "error" };
+          console.error("Concat error:", err);
+          return;
+        }
 
-    const introPath = `intro_${jobId}.mp4`;
-    const mainPath = `main_${jobId}.mp4`;
-    const outroPath = `outro_${jobId}.mp4`;
-    const outputPath = `output_${jobId}.mp4`;
+        jobs[jobId] = {
+          status: "done",
+          file: outputPath,
+        };
 
-    console.log("Downloading intro...");
-    await download(intro_url, introPath);
-
-    console.log("Downloading main...");
-    await download(main_url, mainPath);
-
-    console.log("Downloading outro...");
-    await download(outro_url, outroPath);
-
-    console.log("Files downloaded:");
-    console.log("intro:", fs.existsSync(introPath));
-    console.log("main:", fs.existsSync(mainPath));
-    console.log("outro:", fs.existsSync(outroPath));
-
-    // 🔥 FINAL FIXED FFMPEG COMMAND
-    const cmd = `/usr/bin/ffmpeg -y \
--i "${introPath}" \
--i "${mainPath}" \
--i "${outroPath}" \
--filter_complex "\
-[0:v]scale=1280:720,fps=30,format=yuv420p[v0]; \
-[1:v]scale=1280:720,fps=30,format=yuv420p[v1]; \
-[2:v]scale=1280:720,fps=30,format=yuv420p[v2]; \
-[0:a]aresample=async=1[a0]; \
-[1:a]aresample=async=1[a1]; \
-[2:a]aresample=async=1[a2]; \
-[v0][a0][v1][a1][v2][a2]concat=n=3:v=1:a=1[outv][outa]" \
--map "[outv]" -map "[outa]" \
--c:v libx264 -preset veryfast -c:a aac "${outputPath}"`;
-
-    exec(cmd, (err, stdout, stderr) => {
-      console.log("FFmpeg stdout:", stdout);
-      console.log("FFmpeg stderr:", stderr);
-
-      if (err) {
-        jobs[jobId] = { status: "error" };
-        console.error("FFmpeg error:", err);
-        return;
-      }
-
-      jobs[jobId] = {
-        status: "done",
-        file: outputPath,
-      };
-
-      console.log("Job completed:", jobId);
+        console.log("Job completed:", jobId);
+      });
     });
-  } catch (e) {
-    jobs[jobId] = { status: "error" };
-    console.error("Processing error:", e);
-  }
-}
-
-app.get("/download", (req, res) => {
-  const { job_id } = req.query;
-
-  const job = jobs[job_id];
-
-  if (!job) {
-    return res.status(404).send("Job not found");
-  }
-
-  if (job.status !== "done") {
-    return res.status(202).send("Processing");
-  }
-
-  res.sendFile(__dirname + "/" + job.file);
+  });
 });
-
-app.listen(3000, () => console.log("Server running"));
