@@ -80,6 +80,7 @@ async function processVideos(intro_url, main_url, outro_url, jobId) {
       "${output}"`;
 
     // ---------------- NORMALIZE + CONCAT ----------------
+    console.log("▶️ Starting FFmpeg normalize intro");
     exec(normalize(introPath, normIntro), (err) => {
       if (err) {
         console.error("Intro normalize error:", err);
@@ -87,6 +88,7 @@ async function processVideos(intro_url, main_url, outro_url, jobId) {
         return;
       }
 
+      console.log("▶️ Starting FFmpeg normalize main");
       exec(normalize(mainPath, normMain), (err) => {
         if (err) {
           console.error("Main normalize error:", err);
@@ -94,6 +96,7 @@ async function processVideos(intro_url, main_url, outro_url, jobId) {
           return;
         }
 
+        console.log("▶️ Starting FFmpeg normalize outro");
         exec(normalize(outroPath, normOutro), (err) => {
           if (err) {
             console.error("Outro normalize error:", err);
@@ -112,6 +115,8 @@ async function processVideos(intro_url, main_url, outro_url, jobId) {
           -i files_${jobId}.txt \
           -c copy \
           "${outputPath}"`;
+
+          console.log("▶️ Starting FFmpeg concat");  // ✅ ADDED LOG
 
           exec(concatCmd, (err, stdout, stderr) => {
             console.log("Concat stdout:", stdout);
