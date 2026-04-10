@@ -15,12 +15,13 @@ app.post("/concat", async (req, res) => {
   const jobId = Date.now().toString();
   jobs[jobId] = { status: "processing", file: null };
 
+  // ✅ Respond immediately (prevents timeout)
   res.json({ job_id: jobId });
 
-// run AFTER response
-setImmediate(() => {
-  processVideos(intro_url, main_url, outro_url, jobId);
-});
+  // ✅ Run processing in background
+  setImmediate(() => {
+    processVideos(intro_url, main_url, outro_url, jobId);
+  });
 });
 
 // ✅ MAIN PROCESS FUNCTION
@@ -73,14 +74,10 @@ async function processVideos(intro_url, main_url, outro_url, jobId) {
     console.log("main:", fs.existsSync(mainPath));
     console.log("outro:", fs.existsSync(outroPath));
 
-    // ---------------- NORMALIZE FUNCTION ----------------
+    // ---------------- FAST NORMALIZE (NO RE-ENCODE) ----------------
+    // ✅ CHANGED: removed heavy processing
     const normalize = (input, output) =>
-      `/usr/bin/ffmpeg -y -i "${input}" \
-      -vf "scale=1280:720,fps=30,format=yuv420p" \
-      -c:v libx264 -preset veryfast \
-      -c:a aac -ar 44100 -ac 2 \
-      -movflags +faststart \
-      "${output}"`;
+      `/usr/bin/ffmpeg -y -i "${input}" -c copy "${output}"`;
 
     // ---------------- NORMALIZE + CONCAT ----------------
     console.log("▶️ Starting FFmpeg normalize intro");
@@ -107,19 +104,20 @@ async function processVideos(intro_url, main_url, outro_url, jobId) {
             return;
           }
 
-          // ✅ CONCAT AFTER NORMALIZATION
+          // ---------------- CONCAT ----------------
           fs.writeFileSync(
             `files_${jobId}.txt`,
             `file '${normIntro}'\nfile '${normMain}'\nfile '${normOutro}'`
           );
 
+          // ✅ CHANGED: re-encode ONLY once here
           const concatCmd = `/usr/bin/ffmpeg -y \
           -f concat -safe 0 \
           -i files_${jobId}.txt \
-          -c copy \
+          -c:v libx264 -c:a aac \
           "${outputPath}"`;
 
-          console.log("▶️ Starting FFmpeg concat");  // ✅ ADDED LOG
+          console.log("▶️ Starting FFmpeg concat");
 
           exec(concatCmd, (err, stdout, stderr) => {
             console.log("Concat stdout:", stdout);
@@ -165,7 +163,7 @@ app.get("/download", (req, res) => {
   res.sendFile(__dirname + "/" + job.file);
 });
 
-// ✅ START SERVER
+// ✅ START SERVER (Render compliant)
 const PORT = process.env.PORT;
 
 app.listen(PORT, "0.0.0.0", () => {
