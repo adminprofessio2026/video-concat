@@ -15,9 +15,12 @@ app.post("/concat", async (req, res) => {
   const jobId = Date.now().toString();
   jobs[jobId] = { status: "processing", file: null };
 
-  processVideos(intro_url, main_url, outro_url, jobId);
-
   res.json({ job_id: jobId });
+
+// run AFTER response
+setImmediate(() => {
+  processVideos(intro_url, main_url, outro_url, jobId);
+});
 });
 
 // ✅ MAIN PROCESS FUNCTION
